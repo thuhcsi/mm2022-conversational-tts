@@ -1,6 +1,14 @@
 ---
 layout: default
 ---
+
+## An example conversation in the English conversation corpus
+
+<video width="480" controls>
+  <source src="static/example.mp4" type="video/mp4">
+  Your browser does not support the video tag. Please open static/example.mp4.
+</video>
+
 ## Synthesized samples
 The following samples are unseen during training.
 ### Sample 1
