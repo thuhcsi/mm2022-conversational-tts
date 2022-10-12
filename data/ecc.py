@@ -14,6 +14,7 @@ class Utterance:
         self.speaker = text.stem[-1]
         self.wav = text.parent / f'{text.stem}.wav'
         self.bert = text.parent / f'{text.stem}.bert.npy'
+        self.sbert = text.parent / f'{text.stem}.sbert.npy'
         self.gst = text.parent / f'{text.stem}.gst.npy'
         self.wst = text.parent / f'{text.stem}.wst.npy'
         self.gst_only = text.parent / f'{text.stem}.gst_only.npy'
@@ -49,6 +50,7 @@ class ECC(torch.utils.data.Dataset):
         speaker = []
         length = []
         bert = []
+        sbert = []
         gst = []
         wst = []
         gst_only = []
@@ -58,6 +60,7 @@ class ECC(torch.utils.data.Dataset):
                 speaker_cache += i.speaker
             speaker.append(speaker_cache.find(i.speaker))
             bert.append(torch.as_tensor(np.load(i.bert)))
+            sbert.append(torch.as_tensor(np.load(i.sbert)))
             length.append(bert[-1].shape[0])
             gst.append(torch.as_tensor(np.load(i.gst)))
             wst.append(torch.as_tensor(np.load(i.wst)))
@@ -65,28 +68,32 @@ class ECC(torch.utils.data.Dataset):
         speaker = np.array(speaker)
         length = np.array(length)
         bert = pad_sequence(bert, batch_first=True)
+        sbert = torch.stack(sbert)
         gst = torch.stack(gst)
         wst = pad_sequence(wst, batch_first=True)
         gst_only = torch.stack(gst_only)
-        return length, speaker, bert, gst, wst, gst_only
+        return length, speaker, bert, gst, wst, gst_only, sbert
 
 def process_bert(model, tokenizer, utterance: Utterance):
     text = ''.join([i for i in utterance.text.lower() if i in "abcedfghijklmnopqrstuvwxyz' "])
     words = text.split(' ')
     words = [i for i in words if i != '']
     inputs = tokenizer(text, return_tensors="pt")
-    outputs = model(**inputs).last_hidden_state[0][1:-1].detach().numpy()
+    outputs = model(**inputs)
+    sbert = outputs.pooler_output[0].detach().numpy()
+    bert = outputs.last_hidden_state[0][1:-1].detach().numpy()
     result = []
     start = 0
     for word in words:
         subwords = tokenizer.tokenize(word)
         if len(subwords) > 1:
-            result.append(np.mean(outputs[start:start+len(subwords)], axis=0, keepdims=False))
+            result.append(np.mean(bert[start:start+len(subwords)], axis=0, keepdims=False))
         elif len(subwords) == 1:
-            result.append(outputs[start])
+            result.append(bert[start])
         start += len(subwords)
     try:
         np.save(utterance.bert, np.stack(result))
+        np.save(utterance.sbert, sbert)
     except:
         print(utterance.text, utterance.bert)
 
@@ -95,7 +102,7 @@ if __name__ == '__main__':
     from functools import partial
     from tqdm.contrib.concurrent import process_map, thread_map
 
-    dataset = ECC(sys.argv[1])
+    dataset = ECC(sys.argv[1], chunk_size=6)
     print(len(dataset.conversations), len(dataset.chunks))
 
     if not dataset.chunks[0][0].bert.exists():

@@ -13,7 +13,7 @@ parser.add_argument('--name', default=None)
 parser.add_argument('--load_model', default=None)
 parser.add_argument('--train_path', default='segmented-train')
 parser.add_argument('--test_path', default='segmented-test')
-parser.add_argument('--model', default='proposed', choices=['baseline', 'proposed'])
+parser.add_argument('--model', default='proposed', choices=['baseline_gru', 'baseline', 'proposed'])
 args = parser.parse_args()
 
 device = "cuda:%d" % args.gpu
@@ -24,14 +24,21 @@ if args.model == 'baseline':
     model = Baseline(hparams)
     fake = FakeMST(hparams.fake_mst)
     fake.to(device)
+elif args.model == 'baseline_gru':
+    from hparams import baseline_gru as hparams
+    from model.baseline_gru import BaselineGRU
+    from model.baseline import FakeMST
+    model = BaselineGRU(hparams)
+    fake = FakeMST(hparams.fake_mst)
+    fake.to(device)
 elif args.model == 'proposed':
     from hparams import proposed as hparams
     from model.proposed import Proposed
     model = Proposed(hparams)
 
-train_dataset = ECC(args.train_path)
+train_dataset = ECC(args.train_path, chunk_size=hparams.input.chunk_size)
 train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=hparams.batch_size, shuffle=True, collate_fn=Collate(device), drop_last=True)
-test_dataset = ECC(args.test_path)
+test_dataset = ECC(args.test_path, chunk_size=hparams.input.chunk_size)
 test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=hparams.batch_size, shuffle=True, collate_fn=Collate(device))
 
 if args.load_model:
@@ -59,7 +66,7 @@ for epoch in range(hparams.max_epochs):
 
     batch = 1
     for data in train_dataloader:
-        length, speaker, bert, gst, wst, gst_only = data
+        length, speaker, bert, gst, wst, gst_only, sbert = data
         current_gst = [i[-1] for i in gst]
         current_gst = torch.stack(current_gst)
         current_length = [i[-1] for i in length]
@@ -72,6 +79,17 @@ for epoch in range(hparams.max_epochs):
             history_gst = [i[:-1] for i in gst_only]
 
             predicted_gst = model(length, speaker, bert, history_gst)
+            gst_only_loss = model.gst_loss(predicted_gst, current_gst_only)
+            save.writer.add_scalar(f'training/gst_only_loss', gst_only_loss, step)
+            predicted_gst, predicted_wst = fake(current_length, current_bert, predicted_gst.detach())
+            wst_loss = fake.wst_loss(predicted_wst, current_wst)
+        if args.model == 'baseline_gru':
+            current_gst_only = [i[-1] for i in gst_only]
+            current_gst_only = torch.stack(current_gst_only)
+            current_bert = [i[-1] for i in bert]
+            history_gst = [i[:-1] for i in gst_only]
+
+            predicted_gst = model(length, speaker, bert, history_gst, sbert)
             gst_only_loss = model.gst_loss(predicted_gst, current_gst_only)
             save.writer.add_scalar(f'training/gst_only_loss', gst_only_loss, step)
             predicted_gst, predicted_wst = fake(current_length, current_bert, predicted_gst.detach())
@@ -101,6 +119,8 @@ for epoch in range(hparams.max_epochs):
         batch += 1
 
     save.save_model(model, f'epoch{epoch}')
+    if args.model in ['baseline', 'baseline_gru']:
+        save.save_model(fake, f'fake_epoch{epoch}')
 
     with torch.no_grad():
         predicted_gst = []
@@ -110,7 +130,7 @@ for epoch in range(hparams.max_epochs):
         current_wst = []
         current_gst_only = []
         for data in tqdm(test_dataloader):
-            length, speaker, bert, gst, wst, gst_only = data
+            length, speaker, bert, gst, wst, gst_only, sbert = data
             current_gst += [i[-1] for i in gst]
             current_length = [i[-1] for i in length]
             current_wst += [i[-1, :l] for i, l in zip(wst, current_length)]
@@ -122,7 +142,15 @@ for epoch in range(hparams.max_epochs):
 
                 predicted_gst_only.append(model(length, speaker, bert, history_gst_only))
                 _predicted_gst, _predicted_wst = fake(current_length, current_bert, predicted_gst_only[-1].detach())
+            if args.model == 'baseline_gru':
+                current_gst_only += [i[-1] for i in gst_only]
+                history_gst_only = [i[:-1] for i in gst_only]
+                current_bert = [i[-1] for i in bert]
+
+                predicted_gst_only.append(model(length, speaker, bert, history_gst_only, sbert))
+                _predicted_gst, _predicted_wst = fake(current_length, current_bert, predicted_gst_only[-1].detach())
             if args.model == 'proposed':
+                history_gst = [i[:-1] for i in gst]
                 history_wst = [i[:-1] for i in wst]
 
                 _predicted_gst, _predicted_wst = model(length, speaker, bert, history_gst, history_wst)
@@ -130,7 +158,7 @@ for epoch in range(hparams.max_epochs):
             predicted_gst.append(_predicted_gst)
             predicted_wst += _predicted_wst
 
-        if args.model == 'baseline':
+        if args.model in ['baseline', 'baseline_gru']:
             current_gst_only = torch.stack(current_gst_only)
             predicted_gst_only = torch.cat(predicted_gst_only, dim=0)
             gst_only_loss = model.gst_loss(predicted_gst_only, current_gst_only)
