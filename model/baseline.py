@@ -63,18 +63,17 @@ class Baseline(nn.Module):
         self.global_linear = nn.Linear(hparams.global_linear.input_dim, hparams.global_linear.output_dim)
 
     def forward(self, length, speaker, bert, history_gst):
-        #history_gst = torch.stack(history_gst)
-        #gst = torch.cat([history_gst, torch.zeros((history_gst.shape[0], 1, history_gst.shape[2]), device=history_gst.device)], dim=1)
+        batch_size = len(bert)
 
         global_features = []
-        for i in range(len(bert)):
+        for i in range(batch_size):
             length[i] = length[i].cpu()
             global_features.append(self.global_encoder(bert[i], length[i]))
             global_features[-1] = global_features[-1][range(global_features[-1].shape[0]), (length[i] - 1).long(), :]
         current_global_features = [i[-1] for i in global_features]
         history_global_features = [torch.cat([i[:-1], j], dim=-1) for i, j in zip(global_features[:], history_gst)]
 
-        for i in range(len(global_features)):
+        for i in range(batch_size):
             history_global_features[i] = self.gcn(history_global_features[i], speaker[i][:-1])
 
         current_speaker = torch.stack([i[-1] for i in speaker])
