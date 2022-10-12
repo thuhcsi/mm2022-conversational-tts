@@ -90,6 +90,31 @@ class Baseline(nn.Module):
     def gst_loss(self, p_gst, gst):
         return self.mse(p_gst, gst)
 
+class FakeMST(nn.Module):
+
+    def __init__(self, hparams):
+        super().__init__()
+
+        self.global_linear = nn.Linear(hparams.global_linear.input_dim, hparams.global_linear.output_dim)
+        self.local_linear = nn.Linear(hparams.local_linear.input_dim, hparams.local_linear.output_dim)
+        self.mse = nn.MSELoss()
+
+    def forward(self, length, bert, gst):
+        predicted_gst = self.global_linear(gst)
+        bert = pad_sequence(bert)
+        gst = torch.tile(torch.unsqueeze(gst, dim=1), (1, bert.shape[1], 1))
+        predicted_wst = self.local_linear(torch.cat([bert, gst], dim=-1))
+        predicted_wst = [i[:l] for i, l in zip(predicted_wst, length)]
+        return predicted_gst, predicted_wst
+
+    def gst_loss(self, p_gst, gst):
+        return self.mse(p_gst, gst)
+
+    def wst_loss(self, p_wst, wst):
+        p_wst = torch.cat(p_wst, dim=0)
+        wst = torch.cat(wst, dim=0)
+        return self.mse(p_wst, wst)
+
 if __name__ == '__main__':
     from data.ecc import ECC
     from data.common import Collate
@@ -99,11 +124,18 @@ if __name__ == '__main__':
     data_loader = torch.utils.data.DataLoader(ECC('segmented-train'), batch_size=2, shuffle=True, collate_fn=Collate(device))
 
     model = Baseline(baseline)
+    fake = FakeMST(baseline.fake_mst)
     model.to(device)
 
     for batch in data_loader:
-        length, speaker, bert, gst, _ = batch
-        history_gst = [i[:-1] for i in gst]
-        output = model(length, speaker, bert, history_gst)
-        print(output.shape)
+        length, speaker, bert, gst, wst, gst_only = batch
+        history_gst = [i[:-1] for i in gst_only]
+        predicted_gst = model(length, speaker, bert, history_gst)
+        print(predicted_gst.shape)
+
+        current_length = [i[-1] for i in length]
+        current_wst = [i[-1, :l] for i, l in zip(wst, current_length)]
+        current_bert = [i[-1] for i in bert]
+        predicted_gst, predicted_wst = fake(current_length, current_bert, predicted_gst.detach())
+        print([i.shape for i in predicted_wst])
         break

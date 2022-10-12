@@ -25,13 +25,14 @@ class Options(dict):
         return new
 
 baseline = Options()
-baseline.max_epochs = 50000
-baseline.batch_size = 256
+baseline.max_epochs = 100
+baseline.batch_size = 32
 baseline.learning_rate = 1e-4
 
 baseline.input.chunk_size = 6
 baseline.input.bert_dim = 768
 baseline.input.gst_dim = 40
+baseline.input.wst_dim = 40
 
 baseline.global_encoder.input_dim = baseline.input.bert_dim
 baseline.global_encoder.prenet.sizes = [256, 128]
@@ -56,8 +57,12 @@ baseline.global_attention.value_dim = baseline.dialogue_gcn.output_dim
 baseline.global_linear.input_dim = baseline.global_attention.value_dim + baseline.global_attention.query_dim
 baseline.global_linear.output_dim = baseline.input.gst_dim
 
+baseline.fake_mst.global_linear.input_dim = baseline.input.gst_dim
+baseline.fake_mst.global_linear.output_dim = baseline.input.gst_dim
+baseline.fake_mst.local_linear.input_dim = baseline.input.gst_dim + baseline.input.bert_dim
+baseline.fake_mst.local_linear.output_dim = baseline.input.wst_dim
+
 proposed = deepcopy(baseline)
-proposed.input.wst_dim = 768
 
 proposed.local_encoder = deepcopy(proposed.global_encoder)
 

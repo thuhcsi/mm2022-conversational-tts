@@ -16,6 +16,7 @@ class Utterance:
         self.bert = text.parent / f'{text.stem}.bert.npy'
         self.gst = text.parent / f'{text.stem}.gst.npy'
         self.wst = text.parent / f'{text.stem}.wst.npy'
+        self.gst_only = text.parent / f'{text.stem}.gst_only.npy'
 
 class ECC(torch.utils.data.Dataset):
 
@@ -50,6 +51,7 @@ class ECC(torch.utils.data.Dataset):
         bert = []
         gst = []
         wst = []
+        gst_only = []
         speaker_cache = ''
         for i in self.chunks[index]:
             if not i.speaker in speaker_cache:
@@ -59,12 +61,14 @@ class ECC(torch.utils.data.Dataset):
             length.append(bert[-1].shape[0])
             gst.append(torch.as_tensor(np.load(i.gst)))
             wst.append(torch.as_tensor(np.load(i.wst)))
+            gst_only.append(torch.as_tensor(np.load(i.gst_only)))
         speaker = np.array(speaker)
         length = np.array(length)
         bert = pad_sequence(bert, batch_first=True)
         gst = torch.stack(gst)
         wst = pad_sequence(wst, batch_first=True)
-        return length, speaker, bert, gst, wst
+        gst_only = torch.stack(gst_only)
+        return length, speaker, bert, gst, wst, gst_only
 
 def process_bert(model, tokenizer, utterance: Utterance):
     text = ''.join([i for i in utterance.text.lower() if i in "abcedfghijklmnopqrstuvwxyz' "])
