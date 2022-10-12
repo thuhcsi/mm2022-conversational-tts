@@ -51,7 +51,7 @@ class DialogueGCN(nn.Module):
 
         x = self.rgcn(global_features, edges, edge_type, edge_weight=edge_weight)
         x = self.gcn(x, edges)
-        return x
+        return torch.cat([x, global_features], dim=-1)
 
 class Baseline(nn.Module):
 
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     model.to(device)
 
     for batch in data_loader:
-        length, speaker, bert, gst, wst, gst_only = batch
+        length, speaker, bert, gst, wst, gst_only, sbert = batch
         history_gst = [i[:-1] for i in gst_only]
         predicted_gst = model(length, speaker, bert, history_gst)
         print(predicted_gst.shape)

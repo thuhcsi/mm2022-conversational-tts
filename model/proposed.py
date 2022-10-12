@@ -12,12 +12,19 @@ def pad_attention_weights(attention_weights, length):
     result = torch.cat([torch.stack(i) for i in result])
     return result
 
+class LocalAttention(BidirectionalAttention):
+
+    def __init__(self, k1_dim, k2_dim, v1_dim, v2_dim, attention_dim):
+        super().__init__(k1_dim, k2_dim, v1_dim, v2_dim, attention_dim)
+        del(self.k2_layer)
+        self.k2_layer = self.k1_layer
+
 class DialogueGCN_FG(nn.Module):
 
     def __init__(self, hparams):
         super().__init__()
         self.global_attention = BahdanauAttention(hparams.global_attention.input_dim, hparams.global_attention.input_dim, hparams.global_attention.input_dim, hparams.global_attention.dim)
-        self.local_attention = BidirectionalAttention(hparams.local_attention.k1_dim, hparams.local_attention.k2_dim, hparams.local_attention.v1_dim, hparams.local_attention.v2_dim, hparams.local_attention.dim)
+        self.local_attention = LocalAttention(hparams.local_attention.k1_dim, hparams.local_attention.k2_dim, hparams.local_attention.v1_dim, hparams.local_attention.v2_dim, hparams.local_attention.dim)
         self.rgcn = RGCNConv_FG(hparams.local_feature_dim, hparams.rgcn.dim, 2 * hparams.length ** 2)
         self.gcn = RGCNConv_FG(hparams.rgcn.dim, hparams.gcn.dim, 1)
 
@@ -94,11 +101,13 @@ class Proposed(nn.Module):
         history_local_features = [i[:-1] for i in local_features]
 
         for i in range(batch_size):
-            history_local_features[i] = self.gcn(history_global_features[i], history_local_features[i], speaker[i][:-1], length[i])
+            tmp = self.gcn(history_global_features[i], history_local_features[i], speaker[i][:-1], length[i])
+            history_local_features[i] = torch.cat([history_local_features[i], tmp], dim=-1)
 
         for i in range(batch_size):
-            history_global_features[i] = self.post_global_encoder(history_local_features[i], length[i][:-1])
-            history_global_features[i] = history_global_features[i][range(history_global_features[i].shape[0]), (length[i][:-1] - 1).long(), :]
+            tmp = self.post_global_encoder(history_local_features[i], length[i][:-1])
+            tmp = tmp[range(tmp.shape[0]), (length[i][:-1] - 1).long(), :]
+            history_global_features[i] = torch.cat([history_global_features[i], tmp], dim=-1)
 
         current_speaker = torch.stack([i[-1] for i in speaker])
         current_speaker = nn.functional.one_hot(current_speaker, num_classes=len(speaker[0]))
@@ -160,7 +169,7 @@ if __name__ == '__main__':
     model.to(device)
 
     for batch in data_loader:
-        length, speaker, bert, gst, wst, _ = batch
+        length, speaker, bert, gst, wst, _, _ = batch
         history_gst = [i[:-1] for i in gst]
         history_wst = [i[:-1] for i in wst]
         current_gst = [i[-1] for i in gst]

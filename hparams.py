@@ -47,7 +47,7 @@ baseline.dialogue_gcn.global_attention.input_dim = baseline.dialogue_gcn.global_
 baseline.dialogue_gcn.global_attention.dim = 128
 baseline.dialogue_gcn.rgcn.dim = 128
 baseline.dialogue_gcn.gcn.dim = 128
-baseline.dialogue_gcn.output_dim = baseline.dialogue_gcn.gcn.dim
+baseline.dialogue_gcn.output_dim = baseline.dialogue_gcn.gcn.dim + baseline.dialogue_gcn.global_feature_dim
 
 baseline.global_attention.dim = 128
 baseline.global_attention.query_dim = baseline.global_encoder.output_dim + baseline.input.chunk_size
@@ -79,12 +79,15 @@ proposed.dialogue_gcn.local_attention.k1_dim = proposed.dialogue_gcn.local_featu
 proposed.dialogue_gcn.local_attention.k2_dim = proposed.dialogue_gcn.local_feature_dim
 proposed.dialogue_gcn.local_attention.v1_dim = proposed.dialogue_gcn.local_attention.k1_dim
 proposed.dialogue_gcn.local_attention.v2_dim = proposed.dialogue_gcn.local_attention.k2_dim
+proposed.dialogue_gcn.output_dim = proposed.dialogue_gcn.gcn.dim + proposed.dialogue_gcn.local_feature_dim
+proposed.dialogue_gcn.global_output_dim = proposed.dialogue_gcn.gcn.dim + proposed.dialogue_gcn.global_feature_dim
 
 proposed.post_global_encoder = deepcopy(proposed.global_encoder)
 proposed.post_global_encoder.input_dim = proposed.dialogue_gcn.output_dim
 
-proposed.global_attention.key_dim = proposed.post_global_encoder.output_dim
-proposed.global_attention.value_dim = proposed.post_global_encoder.output_dim
+#proposed.global_attention.key_dim = proposed.post_global_encoder.output_dim + proposed.dialogue_gcn.global_output_dim
+proposed.global_attention.key_dim = proposed.post_global_encoder.output_dim + proposed.dialogue_gcn.global_feature_dim
+proposed.global_attention.value_dim = proposed.global_attention.key_dim
 
 proposed.local_attention.dim = 128
 proposed.local_attention.k1_dim = proposed.local_encoder.output_dim
