@@ -15,7 +15,7 @@ class Utterance:
         self.wav = text.parent / f'{text.stem}.wav'
         self.bert = text.parent / f'{text.stem}.bert.npy'
         self.gst = text.parent / f'{text.stem}.gst.npy'
-        self.wst = text.parent / f'{text.stem}.bert.npy'
+        self.wst = text.parent / f'{text.stem}.wst.npy'
 
 class ECC(torch.utils.data.Dataset):
 
@@ -37,6 +37,7 @@ class ECC(torch.utils.data.Dataset):
                 self.conversations[-1].append(Utterance(i))
             previous = current
 
+        self.conversations = [[j for j in i if j.gst.exists() ] for i in self.conversations]
         self.conversations = [i for i in self.conversations if len(i) >= chunk_size]
         self.chunks = [i[j:j+chunk_size] for i in self.conversations for j in range(len(i)-chunk_size)]
 
@@ -66,10 +67,24 @@ class ECC(torch.utils.data.Dataset):
         return length, speaker, bert, gst, wst
 
 def process_bert(model, tokenizer, utterance: Utterance):
-    inputs = tokenizer(utterance.text, return_tensors="pt")
-    outputs = model(**inputs)
-    np.save(utterance.bert, outputs.last_hidden_state[0].detach().numpy())
-    np.save(utterance.gst, outputs.pooler_output[0].detach().numpy())
+    text = ''.join([i for i in utterance.text.lower() if i in "abcedfghijklmnopqrstuvwxyz' "])
+    words = text.split(' ')
+    words = [i for i in words if i != '']
+    inputs = tokenizer(text, return_tensors="pt")
+    outputs = model(**inputs).last_hidden_state[0][1:-1].detach().numpy()
+    result = []
+    start = 0
+    for word in words:
+        subwords = tokenizer.tokenize(word)
+        if len(subwords) > 1:
+            result.append(np.mean(outputs[start:start+len(subwords)], axis=0, keepdims=False))
+        elif len(subwords) == 1:
+            result.append(outputs[start])
+        start += len(subwords)
+    try:
+        np.save(utterance.bert, np.stack(result))
+    except:
+        print(utterance.text, utterance.bert)
 
 if __name__ == '__main__':
     import sys
@@ -83,6 +98,7 @@ if __name__ == '__main__':
         from transformers import AutoTokenizer, AutoModel
         model = AutoModel.from_pretrained("bert-base-uncased")
         tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        #process_bert(model, tokenizer, [i for chunk in dataset.chunks for i in chunk][0])
         thread_map(partial(process_bert, model, tokenizer), [i for chunk in dataset.chunks for i in chunk])
 
     from .common import Collate

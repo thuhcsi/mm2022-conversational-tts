@@ -1,4 +1,6 @@
 __pycache__
 enhanced
-segmented
+segmented*/
+save
 *.sw*
+*.tar*

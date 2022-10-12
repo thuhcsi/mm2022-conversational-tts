@@ -26,12 +26,12 @@ class Options(dict):
 
 baseline = Options()
 baseline.max_epochs = 50000
-baseline.batch_size = 16
+baseline.batch_size = 256
 baseline.learning_rate = 1e-4
 
 baseline.input.chunk_size = 6
 baseline.input.bert_dim = 768
-baseline.input.gst_dim = 768
+baseline.input.gst_dim = 40
 
 baseline.global_encoder.input_dim = baseline.input.bert_dim
 baseline.global_encoder.prenet.sizes = [256, 128]

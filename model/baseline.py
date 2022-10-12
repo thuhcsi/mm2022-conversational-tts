@@ -37,13 +37,13 @@ class DialogueGCN(nn.Module):
             self.edge_type_to_id[edge_type] = i
 
     def forward(self, global_features, speaker):
-        edges = torch.tensor(self.edges).T
+        edges = torch.tensor(self.edges).T.to(global_features.device)
         edge_type = []
         for i in range(len(speaker)):
             for j in range(len(speaker)):
                 direction = 0 if i < j else 1
                 edge_type.append(self.edge_type_to_id[f'{speaker[i]}{speaker[j]}{direction}'])
-        edge_type = torch.tensor(edge_type)
+        edge_type = torch.tensor(edge_type).to(global_features.device)
 
         global_attention_keys = torch.stack([global_features for i in range(len(speaker))])
         _, global_attention_weights = self.global_attention(global_features, global_attention_keys, global_attention_keys)
@@ -61,6 +61,7 @@ class Baseline(nn.Module):
         self.gcn = DialogueGCN(hparams.dialogue_gcn)
         self.global_attention = BahdanauAttention(hparams.global_attention.query_dim, hparams.global_attention.key_dim, hparams.global_attention.key_dim, hparams.global_attention.dim)
         self.global_linear = nn.Linear(hparams.global_linear.input_dim, hparams.global_linear.output_dim)
+        self.mse = nn.MSELoss()
 
     def forward(self, length, speaker, bert, history_gst):
         batch_size = len(bert)
@@ -86,13 +87,16 @@ class Baseline(nn.Module):
         current_gst = self.global_linear(context_vector)
         return current_gst
 
+    def gst_loss(self, p_gst, gst):
+        return self.mse(p_gst, gst)
+
 if __name__ == '__main__':
     from data.ecc import ECC
     from data.common import Collate
     from hparams import baseline
 
     device = 'cpu'
-    data_loader = torch.utils.data.DataLoader(ECC('segmented'), batch_size=2, shuffle=True, collate_fn=Collate(device))
+    data_loader = torch.utils.data.DataLoader(ECC('segmented-train'), batch_size=2, shuffle=True, collate_fn=Collate(device))
 
     model = Baseline(baseline)
     model.to(device)
