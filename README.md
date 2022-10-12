@@ -1,4 +1,5 @@
-# mm2022-conversational-tts
+Inferring Speaking Styles from Multi-modal Conversational Context by Multi-scale Relational Graph Convolutional Networks
+====
 
 The source code for Inferring Speaking Styles from Multi-modal Conversational Context by Multi-scale Relational Graph Convolutional Networks on ACM Multimedia 2022.
 
