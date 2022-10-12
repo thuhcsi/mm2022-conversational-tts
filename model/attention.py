@@ -16,6 +16,7 @@ class BahdanauAttention(nn.Module):
         attention_weights = self.softmax(score)
         context_vector = torch.bmm(attention_weights.transpose(1, 2), value)
         context_vector = torch.squeeze(context_vector)
+        attention_weights = torch.squeeze(attention_weights)
         return context_vector, attention_weights
 
 class BidirectionalAttention(nn.Module):
@@ -33,7 +34,7 @@ class BidirectionalAttention(nn.Module):
         k2 = self.k2_layer(k2)
         score = torch.bmm(k1, k2.transpose(1, 2))
 
-        if k1_lengths or k2_lengths:
+        if not k1_lengths is None or not k2_lengths is None:
             mask = torch.zeros(score.shape, dtype=torch.int).detach().to(score.device)
             for i, l in enumerate(k1_lengths):
                 mask[i,l:,:] += 1

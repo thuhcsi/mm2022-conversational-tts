@@ -1,5 +1,4 @@
 import torch
-from torch.autograd import Variable
 from torch import nn
 from torch_geometric.nn.conv import GraphConv
 
@@ -26,7 +25,7 @@ class DialogueGCN(nn.Module):
 
     def __init__(self, hparams):
         super().__init__()
-        self.global_attention = BahdanauAttention(hparams.attention.input_dim, hparams.attention.input_dim, hparams.attention.input_dim, hparams.attention.dim)
+        self.global_attention = BahdanauAttention(hparams.global_attention.input_dim, hparams.global_attention.input_dim, hparams.global_attention.input_dim, hparams.global_attention.dim)
         self.rgcn = RGCNConv(hparams.global_feature_dim, hparams.rgcn.dim, 2 * hparams.length ** 2)
         self.gcn = GraphConv(hparams.rgcn.dim, hparams.gcn.dim)
 
@@ -60,8 +59,8 @@ class Baseline(nn.Module):
         super().__init__()
         self.global_encoder = GlobalEncoder(hparams.global_encoder)
         self.gcn = DialogueGCN(hparams.dialogue_gcn)
-        self.attention = BahdanauAttention(hparams.attention.query_dim, hparams.attention.key_dim, hparams.attention.key_dim, hparams.attention.dim)
-        self.linear = nn.Linear(hparams.linear.input_dim, hparams.linear.output_dim)
+        self.global_attention = BahdanauAttention(hparams.global_attention.query_dim, hparams.global_attention.key_dim, hparams.global_attention.key_dim, hparams.global_attention.dim)
+        self.global_linear = nn.Linear(hparams.global_linear.input_dim, hparams.global_linear.output_dim)
 
     def forward(self, length, speaker, bert, history_gst):
         #history_gst = torch.stack(history_gst)
@@ -83,9 +82,9 @@ class Baseline(nn.Module):
         history_global_features = torch.stack(history_global_features)
         current_global_features = torch.stack(current_global_features)
         current_global_features = torch.cat([current_global_features, current_speaker], dim=-1)
-        context_vector, _ = self.attention(current_global_features, history_global_features, history_global_features)
+        context_vector, _ = self.global_attention(current_global_features, history_global_features, history_global_features)
         context_vector = torch.cat([current_global_features, context_vector], dim=-1)
-        current_gst = self.linear(context_vector)
+        current_gst = self.global_linear(context_vector)
         return current_gst
 
 if __name__ == '__main__':

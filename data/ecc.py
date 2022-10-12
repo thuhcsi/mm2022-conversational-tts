@@ -62,7 +62,7 @@ class ECC(torch.utils.data.Dataset):
         length = np.array(length)
         bert = pad_sequence(bert, batch_first=True)
         gst = torch.stack(gst)
-        wst = pad_sequence(wst)
+        wst = pad_sequence(wst, batch_first=True)
         return length, speaker, bert, gst, wst
 
 def process_bert(model, tokenizer, utterance: Utterance):
