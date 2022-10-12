@@ -49,9 +49,9 @@ class BidirectionalAttention(nn.Module):
         o1 = torch.bmm(w1, v1)
         o2 = torch.bmm(w2, v2)
 
-        #w1 = [i[:l2, :l1] for i, l1, l2 in zip(w1, k1_lengths, k2_lengths)]
-        #w2 = [i[:l1, :l2] for i, l1, l2 in zip(w2, k1_lengths, k2_lengths)]
-        #score = [i[:l1, :l2] for i, l1, l2 in zip(score, k1_lengths, k2_lengths)]
+        w1 = [i[:l2, :l1] for i, l1, l2 in zip(w1, k1_lengths, k2_lengths)]
+        w2 = [i[:l1, :l2] for i, l1, l2 in zip(w2, k1_lengths, k2_lengths)]
+        score = [i[:l1, :l2] for i, l1, l2 in zip(score, k1_lengths, k2_lengths)]
 
         return o1, o2, w1, w2, score
 
@@ -86,8 +86,8 @@ class BidirectionalAdditiveAttention(nn.Module):
         o1 = torch.bmm(w1, v1)
         o2 = torch.bmm(w2, v2)
 
-        #w1 = [i[:l2, :l1] for i, l1, l2 in zip(w1, k1_lengths, k2_lengths)]
-        #w2 = [i[:l1, :l2] for i, l1, l2 in zip(w2, k1_lengths, k2_lengths)]
-        #score = [i[:l1, :l2] for i, l1, l2 in zip(score, k1_lengths, k2_lengths)]
+        w1 = [i[:l2, :l1] for i, l1, l2 in zip(w1, k1_lengths, k2_lengths)]
+        w2 = [i[:l1, :l2] for i, l1, l2 in zip(w2, k1_lengths, k2_lengths)]
+        score = [i[:l1, :l2] for i, l1, l2 in zip(score, k1_lengths, k2_lengths)]
 
         return o1, o2, w1, w2, score

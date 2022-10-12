@@ -6,6 +6,12 @@ from .graph import RGCNConv_FG
 from .attention import BahdanauAttention, BidirectionalAttention
 from .baseline import pad_sequence, GlobalEncoder
 
+def pad_attention_weights(attention_weights, length):
+    result = [[torch.cat([j, torch.zeros((length - j.shape[0], j.shape[1]), device=j.device)], dim=0) for j in i] for i in attention_weights]
+    result = [[torch.cat([j, torch.zeros((j.shape[0], length - j.shape[1]), device=j.device)], dim=1) for j in i] for i in result]
+    result = torch.cat([torch.stack(i) for i in result])
+    return result
+
 class DialogueGCN_FG(nn.Module):
 
     def __init__(self, hparams):
@@ -23,13 +29,13 @@ class DialogueGCN_FG(nn.Module):
             self.edge_type_to_id[edge_type] = i
 
     def forward(self, global_features, local_features, speaker, length):
-        edges = torch.tensor(self.edges).T
+        edges = torch.tensor(self.edges).T.to(global_features.device)
         edge_type = []
         for i in range(len(speaker)):
             for j in range(len(speaker)):
                 direction = 0 if i < j else 1
                 edge_type.append(self.edge_type_to_id[f'{speaker[i]}{speaker[j]}{direction}'])
-        edge_type = torch.tensor(edge_type)
+        edge_type = torch.tensor(edge_type).to(global_features.device)
 
         global_attention_keys = torch.stack([global_features for i in range(len(speaker))])
         _, global_attention_weights = self.global_attention(global_features, global_attention_keys, global_attention_keys)
@@ -42,8 +48,9 @@ class DialogueGCN_FG(nn.Module):
             local_attention_k1_length = torch.stack([length[i] for j in range(len(speaker))])
             local_attention_k2_length = torch.stack([length[j] for j in range(len(speaker))])
             _, _, w1, w2, _ = self.local_attention(local_attention_k1, local_attention_k2, local_attention_k1, local_attention_k2, k1_lengths=local_attention_k1_length, k2_lengths=local_attention_k2_length)
-            local_attention_weights.append(w2)
-        local_attention_weights = torch.cat(local_attention_weights)
+            local_attention_weights.append(w1)
+        #local_attention_weights = torch.cat(local_attention_weights)
+        local_attention_weights = pad_attention_weights(local_attention_weights, local_features.shape[1])
 
         edge_weight = torch.stack([global_attention_weights[i] * local_attention_weights[i] for i in range(len(self.edges))])
 
@@ -67,6 +74,7 @@ class Proposed(nn.Module):
         self.local_attention = BidirectionalAttention(hparams.local_attention.k1_dim, hparams.local_attention.k2_dim, hparams.local_attention.v1_dim, hparams.local_attention.v2_dim, hparams.local_attention.dim)
         self.global_linear = nn.Linear(hparams.global_linear.input_dim, hparams.global_linear.output_dim)
         self.local_linear = nn.Linear(hparams.local_linear.input_dim, hparams.local_linear.output_dim)
+        self.mse = nn.MSELoss()
 
     def forward(self, length, speaker, bert, history_gst, history_wst):
         local_features = []
@@ -75,6 +83,7 @@ class Proposed(nn.Module):
         for i in range(batch_size):
             length[i] = length[i].cpu()
             features = torch.cat([history_wst[i], torch.zeros((1, ) +  history_wst[i].shape[1:], device=history_wst[i].device)])
+            features = torch.cat([features, bert[i]], dim=-1)
             local_features.append(self.local_encoder(features, length[i]))
             global_features.append(self.global_encoder(features, length[i]))
             global_features[-1] = global_features[-1][range(global_features[-1].shape[0]), (length[i] - 1).long(), :]
@@ -108,8 +117,9 @@ class Proposed(nn.Module):
             local_attention_k1_length = torch.stack([length[i][-1] for j in range(len(history_local_features[i]))])
             local_attention_k2_length = length[i][:-1]
             _, _, w1, w2, _ = self.local_attention(local_attention_k1, local_attention_k2, local_attention_k1, local_attention_k2, k1_lengths=local_attention_k1_length, k2_lengths=local_attention_k2_length)
-            local_attention_weights.append(w2)
+            local_attention_weights.append(pad_attention_weights([w1], history_local_features[i].shape[1]))
         #print([i.shape for i in local_attention_weights])
+        #local_attention_weights = [pad_attention_weights(i, )
 
         attention_weights = []
         for i in range(batch_size):
@@ -130,21 +140,35 @@ class Proposed(nn.Module):
 
         return current_gst, current_wst
 
+    def gst_loss(self, p_gst, gst):
+        return self.mse(p_gst, gst)
+
+    def wst_loss(self, p_wst, wst):
+        p_wst = torch.cat(p_wst, dim=0)
+        wst = torch.cat(wst, dim=0)
+        return self.mse(p_wst, wst)
+
 if __name__ == '__main__':
     from data.ecc import ECC
     from data.common import Collate
     from hparams import proposed
 
     device = 'cpu'
-    data_loader = torch.utils.data.DataLoader(ECC('segmented'), batch_size=2, shuffle=True, collate_fn=Collate(device))
+    data_loader = torch.utils.data.DataLoader(ECC('segmented-train'), batch_size=2, shuffle=True, collate_fn=Collate(device))
 
     model = Proposed(proposed)
     model.to(device)
 
     for batch in data_loader:
-        length, speaker, bert, gst, wst = batch
+        length, speaker, bert, gst, wst, _ = batch
         history_gst = [i[:-1] for i in gst]
         history_wst = [i[:-1] for i in wst]
-        output = model(length, speaker, bert, history_gst, history_wst)
-        #print(output.shape)
+        current_gst = [i[-1] for i in gst]
+        current_gst = torch.stack(current_gst)
+        current_length = [i[-1] for i in length]
+        current_wst = [i[-1, :l] for i, l in zip(wst, current_length)]
+
+        predicted_gst, predicted_wst = model(length, speaker, bert, history_gst, history_wst)
+        print(model.gst_loss(predicted_gst, current_gst))
+        print(model.wst_loss(predicted_wst, current_wst))
         break

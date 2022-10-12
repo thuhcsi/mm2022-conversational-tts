@@ -64,6 +64,7 @@ baseline.fake_mst.local_linear.output_dim = baseline.input.wst_dim
 
 proposed = deepcopy(baseline)
 
+proposed.global_encoder.input_dim = proposed.input.bert_dim + proposed.input.wst_dim
 proposed.local_encoder = deepcopy(proposed.global_encoder)
 
 proposed.dialogue_gcn.local_feature_dim = proposed.local_encoder.output_dim

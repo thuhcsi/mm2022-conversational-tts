@@ -6,8 +6,8 @@ from .tacotron import Prenet, CBHG
 from .graph import RGCNConv
 from .attention import BahdanauAttention
 
-def pad_sequence(sequences):
-    return torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
+def pad_sequence(sequences, **kwargs):
+    return torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True, **kwargs)
 
 class GlobalEncoder(nn.Module):
 

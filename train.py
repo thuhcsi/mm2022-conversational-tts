@@ -47,8 +47,8 @@ optimizer = torch.optim.Adam(model.parameters(), lr=hparams.learning_rate, betas
 
 if args.name is None:
     args.name = args.model
-#else:
-args.name = args.model + '_' + args.name
+else:
+    args.name = args.model + '_' + args.name
 
 save = Save(args.name)
 save.save_parameters(hparams)
@@ -61,9 +61,9 @@ for epoch in range(hparams.max_epochs):
     for data in train_dataloader:
         length, speaker, bert, gst, wst, gst_only = data
         current_gst = [i[-1] for i in gst]
+        current_gst = torch.stack(current_gst)
         current_length = [i[-1] for i in length]
         current_wst = [i[-1, :l] for i, l in zip(wst, current_length)]
-        current_gst = torch.stack(current_gst)
 
         if args.model == 'baseline':
             current_gst_only = [i[-1] for i in gst_only]
@@ -97,11 +97,10 @@ for epoch in range(hparams.max_epochs):
         loss.backward()
         optimizer.step()
 
-        if step % 20000 == 0:
-            save.save_model(model, f'{step // 1000}k')
-
         step += 1
         batch += 1
+
+    save.save_model(model, f'epoch{epoch}')
 
     with torch.no_grad():
         predicted_gst = []
