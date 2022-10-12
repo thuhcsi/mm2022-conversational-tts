@@ -44,6 +44,8 @@ class RGCNConv(RGCNConv):
         for i in range(self.num_relations):
             tmp = masked_edge_index(edge_index, edge_type == i)
             tmp2 = masked_edge_weight(edge_weight, edge_type == i)
+            if tmp2.shape[0] == 0:
+                continue
 
             if x_l.dtype == torch.long:
                 out += self.propagate(tmp, x=weight[i, x_l], size=size, edge_weight=tmp2)
@@ -92,6 +94,8 @@ class RGCNConv_FG(RGCNConv):
         for i in range(self.num_relations):
             tmp = masked_edge_index(edge_index, edge_type == i)
             tmp2 = masked_edge_weight(edge_weight, edge_type == i)
+            if tmp2.shape[0] == 0:
+                continue
 
             if x_l.dtype == torch.long:
                 out += self.propagate(tmp, x=weight[i, x_l], size=size, edge_weight=tmp2)
