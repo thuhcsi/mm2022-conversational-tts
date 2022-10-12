@@ -32,7 +32,7 @@ elif args.model == 'proposed':
 train_dataset = ECC(args.train_path)
 train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=hparams.batch_size, shuffle=True, collate_fn=Collate(device), drop_last=True)
 test_dataset = ECC(args.test_path)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=hparams.batch_size, shuffle=True, collate_fn=Collate(device), drop_last=True)
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=hparams.batch_size, shuffle=True, collate_fn=Collate(device))
 
 if args.load_model:
     #model_dict = model.state_dict()

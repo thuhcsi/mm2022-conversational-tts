@@ -49,6 +49,7 @@ with torch.no_grad():
             predicted_gst_only.append(model(length, speaker, bert, history_gst_only))
             _predicted_gst, _predicted_wst = fake(current_length, current_bert, predicted_gst_only[-1].detach())
         if args.model == 'proposed':
+            history_gst = [i[:-1] for i in gst]
             history_wst = [i[:-1] for i in wst]
 
             _predicted_gst, _predicted_wst = model(length, speaker, bert, history_gst, history_wst)
@@ -63,7 +64,7 @@ with torch.no_grad():
 
     current_utterances = [chunk[-1] for chunk in test_dataset.chunks]
     for i in range(len(current_utterances)):
-        key = current_utterances[i].gst.stem
+        key = current_utterances[i].wav.stem
         if args.model == 'baseline':
             np.save(test_dataset.path / f'{key}.p_gst_only.npy', predicted_gst_only[i].cpu().numpy())
         np.save(test_dataset.path / f'{key}.p_gst.npy', predicted_gst[i].cpu().numpy())
