@@ -35,8 +35,7 @@ class ECC(torch.utils.data.Dataset):
 
             if current - 1 != previous:
                 self.conversations.append([])
-            else:
-                self.conversations[-1].append(Utterance(i))
+            self.conversations[-1].append(Utterance(i))
             previous = current
 
         self.conversations = [[j for j in i if j.gst.exists() ] for i in self.conversations]
